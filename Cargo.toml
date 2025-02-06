@@ -1,0 +1,10 @@
+[package]
+name = "cert-monitor"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+rustls = "0.23.22"
+webpki-roots = "0.26.8"
+x509-parser = "0.17.0"
+#asn1-rs = "0.7.0"
