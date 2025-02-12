@@ -49,10 +49,7 @@ impl CertRetriever {
                     None => {
                         Err(CertError::TargetHasNoCertMatch(format!("{}", target_name)))
                     }
-                    Some(peer_cert) => {
-                        //println!("Cert {:?}", peer_cert);
-                        println!("Cert Serial {:?}", peer_cert.get_serial_number());
-                        println!("Cert CommonName {:?}", peer_cert.get_common_name());
+                    Some(peer_cert) => {                        
                         Ok(peer_cert.clone())
                     }
                 }
@@ -209,7 +206,7 @@ mod tests {
 
     #[test]
     fn test_get_common_name_ok_1(){
-        let certs = [ CertificateDer::from(crate::target_cert::tests::GITEA_CERT), CertificateDer::from(GATEKEEPER_CERT), CertificateDer::from(WWW_CERT)];
+        let certs = [ CertificateDer::from(crate::cert_retriever::tests::GITEA_CERT), CertificateDer::from(GATEKEEPER_CERT), CertificateDer::from(WWW_CERT)];
         let cert = SimpleCertificate::find_matching_certificate("owncloud.tschirky.ch", Some(&certs));
         assert!(cert.is_some());
         let cert = cert.unwrap();
@@ -219,7 +216,7 @@ mod tests {
 
     #[test]
     fn test_get_common_name_ok_2(){
-        let certs = [ CertificateDer::from(crate::target_cert::tests::GITEA_CERT), CertificateDer::from(GATEKEEPER_CERT), CertificateDer::from(WWW_CERT)];
+        let certs = [ CertificateDer::from(crate::cert_retriever::tests::GITEA_CERT), CertificateDer::from(GATEKEEPER_CERT), CertificateDer::from(WWW_CERT)];
         let cert = SimpleCertificate::find_matching_certificate("gitea.tschirky.ch", Some(&certs));
         assert!(cert.is_some());
         let cert = cert.unwrap();
@@ -229,7 +226,7 @@ mod tests {
 
     #[test]
     fn test_get_common_name_nok_1(){
-        let certs = [ CertificateDer::from(crate::target_cert::tests::GITEA_CERT), CertificateDer::from(GATEKEEPER_CERT), CertificateDer::from(WWW_CERT)];
+        let certs = [ CertificateDer::from(crate::cert_retriever::tests::GITEA_CERT), CertificateDer::from(GATEKEEPER_CERT), CertificateDer::from(WWW_CERT)];
         let cert = SimpleCertificate::find_matching_certificate("mirko.tschirky.ch", Some(&certs));
         assert!(cert.is_none());
     }
