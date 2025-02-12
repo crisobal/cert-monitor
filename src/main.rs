@@ -1,14 +1,30 @@
+mod target_cert;
 
 use std::io::{Write};
 use std::net::TcpStream;
 use std::sync::Arc;
-use rustls::pki_types::{CertificateDer, ServerName};
+use rustls::pki_types::{ServerName};
 use rustls::RootCertStore;
-use x509_parser::parse_x509_certificate;
 use x509_parser::prelude::{FromDer, GeneralName, X509Certificate};
 
 
-fn get_peer_certificate<'a>(peer_name : &str, certs : std::option::Option<&'a [rustls::pki_types::CertificateDer<'a>]>) -> Option<X509Certificate<'a>>{
+fn dump_peer_certificates<'a>(certs : Option<&'a [rustls::pki_types::CertificateDer<'a>]>){
+    if let Some(cert) = certs {
+
+        cert.iter().for_each(|cert| {
+            if let Ok((_,c)) = X509Certificate::from_der(cert.as_ref()) {
+                c.subject().iter_common_name().for_each(|name| {
+                    if let Ok(cn) = name.as_str(){
+                        let out_file_name = format!("./testdata/{}.cer", cn);
+                        std::fs::write(&out_file_name, cert.as_ref()).unwrap();
+                    }
+                });
+            }
+        })
+    }
+}
+
+fn get_peer_certificate<'a>(peer_name : &str, certs : Option<&'a [rustls::pki_types::CertificateDer<'a>]>) -> Option<X509Certificate<'a>>{
     let mut certificate = None;
     if let Some(cert) = certs {
         cert.iter().for_each(|cert| {
@@ -21,16 +37,16 @@ fn get_peer_certificate<'a>(peer_name : &str, certs : std::option::Option<&'a [r
                     }
                 });
                 let san_match = c.subject_alternative_name().unwrap().is_some_and(|c| {
-                    c.value.general_names.iter().any(|name| {                        
+                    c.value.general_names.iter().any(|name| {
                         match name{
                             GeneralName::DNSName(n) => {
                                 *n == peer_name
                             }
                             _ => false
                         }
-                    })                    
+                    })
                 });
-                
+
                 if cn_match || san_match {
                     certificate = Some(c);
                 }
@@ -49,40 +65,26 @@ fn main() {
         .with_no_client_auth();
     config.enable_sni = true;
     config.enable_early_data = true;
-
-
-
-
-    // Allow using SSLKEYLOGFILE.
     config.key_log = Arc::new(rustls::KeyLogFile::new());
 
-    let server_name_str = "owncloud.tschirky.ch";
+    let server_name_str = "www.tschirky.ch";
     let server_name : ServerName = server_name_str.try_into().unwrap();
 
     let mut sock = TcpStream::connect(format!("{}:443", server_name_str)).unwrap();
-
     let mut conn = rustls::ClientConnection::new(Arc::new(config), server_name).unwrap();
-
-
     let mut tls = rustls::Stream::new(&mut conn, &mut sock);
 
-    let res = tls.write(b"\n").unwrap();
+    let _res = tls.write(b"\n").unwrap();
 
-    let ciphersuite = tls
-        .conn
-        .negotiated_cipher_suite()
-        .unwrap();
-
-    writeln!(
-        &mut std::io::stderr(),
-        "Current ciphersuite: {:?}",
-        ciphersuite.suite()
-    ).unwrap();
-
+    dump_peer_certificates(tls.conn.peer_certificates());
     if let Some(peer_cert) = get_peer_certificate(server_name_str, tls.conn.peer_certificates()){
-        println!("Cert {:?}", peer_cert);
-        println!("Cert Serial {:?}", peer_cert.raw_serial_as_string());
-        println!("Cert CN {:?}", peer_cert.subject);
+        //println!("Cert {:?}", peer_cert);
+        println!("Cert Serial {:?}", peer_cert.raw_serial_as_string().replace(":",""));
+        peer_cert.subject.iter_common_name().for_each(|s| {
+            if let Ok(name_str) = s.as_str(){
+                println!("Cert CommonName {:?}", name_str);
+            }
+        });
         println!("Cert Expiry {:?}", peer_cert.validity().not_after.to_datetime());
     }
 }
