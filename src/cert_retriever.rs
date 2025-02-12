@@ -1,7 +1,7 @@
-use std::io::Write;
+use std::io::{Error, ErrorKind, Write};
 use std::net::TcpStream;
 use std::sync::Arc;
-use rustls::pki_types::{CertificateDer, ServerName};
+use rustls::pki_types::{ServerName};
 use rustls::{ClientConfig, RootCertStore};
 use x509_parser::extensions::GeneralName;
 use x509_parser::prelude::{FromDer, X509Certificate};
@@ -23,8 +23,9 @@ impl CertRetriever {
             .with_root_certificates(root_store)
             .with_no_client_auth();
         config.enable_sni = true;
-        config.enable_early_data = true;
+        config.enable_early_data = true;        
         config.key_log = Arc::new(rustls::KeyLogFile::new());
+        //config.dangerous()
 
         CertRetriever {
             config : Arc::new(config)
@@ -35,21 +36,23 @@ impl CertRetriever {
         let full_target = format!("{}:{}", target_name, target_port);
         let server_name : ServerName = String::from(target_name).try_into().unwrap();
 
-        //let mut sock = TcpStream::connect(full_target).unwrap();
 
         match TcpStream::connect(&full_target) {
             Ok(sock) => {
                 let mut sock = sock;
                 let mut conn = rustls::ClientConnection::new(self.config.clone(), server_name).unwrap();
+                
                 let mut tls = rustls::Stream::new(&mut conn, &mut sock);
-
-                let _res = tls.write(b"\n").unwrap();
+                if let Err(e) = tls.write(b"\n") {
+                    //TODO change to proper debug logging
+                    println!("Error during connect to {}: {}", full_target, e.kind().to_string());
+                }
 
                 match SimpleCertificate::find_matching_certificate(target_name, tls.conn.peer_certificates()){
                     None => {
                         Err(CertError::TargetHasNoCertMatch(format!("{}", target_name)))
                     }
-                    Some(peer_cert) => {                        
+                    Some(peer_cert) => {
                         Ok(peer_cert.clone())
                     }
                 }
@@ -106,12 +109,6 @@ pub struct SimpleCertificate{
 
 
 impl SimpleCertificate {
- /*   pub fn new(crt : &x509_parser::certificate::X509Certificate) -> SimpleCertificate<'a> {
-        let new_cert = crt.clone().to_owned();
-        SimpleCertificate {
-            cert : new_cert.to_owned()
-        }
-    }*/
 
     pub fn new(cert : &X509Certificate) -> SimpleCertificate {
 
@@ -175,6 +172,7 @@ impl SimpleCertificate {
 
 #[cfg(test)]
 mod tests {
+    use rustls::pki_types::CertificateDer;
     use time::macros::format_description;
     use super::*;
     const GITEA_CERT: &[u8] = include_bytes!("../testdata/gitea.tschirky.ch.crt");
@@ -197,7 +195,7 @@ mod tests {
             assert_eq!(c.get_common_name(), "gitea.tschirky.ch");
             assert_eq!(c.get_serial_number(), "04ba66ac8f777d7daa73e89ceab53b47f5ae");
             assert_eq!(c.get_san_dns_names(), &["gitea.tschirky.ch"]);
-            
+
             assert_eq!(c.get_remaining_days(), (38 - test_day_offset()));
         } else {
             assert!(false);
@@ -243,8 +241,8 @@ mod tests {
     #[test]
     fn test_cert_retriever_unreachable_target_1() {
         let retr = CertRetriever::new();
-        let cert = retr.get_target_cert_from_endpoint("www.tschirky.ch", 998);        
-        
+        let cert = retr.get_target_cert_from_endpoint("www.tschirky.ch", 998);
+
         match cert {
             Err(e) => {
                 match e {
