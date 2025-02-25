@@ -1,11 +1,12 @@
-use std::io::{Error, ErrorKind, Write};
+use rustls::pki_types::ServerName;
+use rustls::{ClientConfig, RootCertStore};
+use std::io::{BufRead, Write};
 use std::net::TcpStream;
 use std::sync::Arc;
-use rustls::pki_types::{ServerName};
-use rustls::{ClientConfig, RootCertStore};
+use time::OffsetDateTime;
+use x509_parser::error::PEMError;
 use x509_parser::extensions::GeneralName;
 use x509_parser::prelude::{FromDer, X509Certificate};
-use time::OffsetDateTime;
 
 
 pub struct CertRetriever {
@@ -19,14 +20,15 @@ impl CertRetriever {
         let root_store = RootCertStore {
             roots: webpki_roots::TLS_SERVER_ROOTS.into(),
         };
-        let mut config = rustls::ClientConfig::builder()
+        let mut config = ClientConfig::builder()
             .with_root_certificates(root_store)
             .with_no_client_auth();
         config.enable_sni = true;
         config.enable_early_data = true;        
         config.key_log = Arc::new(rustls::KeyLogFile::new());
-        //config.dangerous()
-
+        
+        //TODO: future approach to also include expired certificates
+        //config.dangerous().set_certificate_verifier()
         CertRetriever {
             config : Arc::new(config)
         }
@@ -45,12 +47,12 @@ impl CertRetriever {
                 let mut tls = rustls::Stream::new(&mut conn, &mut sock);
                 if let Err(e) = tls.write(b"\n") {
                     //TODO change to proper debug logging
-                    println!("Error during connect to {}: {}", full_target, e.kind().to_string());
+                    //println!("Error during connect to {}: {}", full_target, e.kind().to_string());
                 }
 
                 match SimpleCertificate::find_matching_certificate(target_name, tls.conn.peer_certificates()){
                     None => {
-                        Err(CertError::TargetHasNoCertMatch(format!("{}", target_name)))
+                        Err(CertError::TargetHasNoCertMatch(target_name.to_owned()))
                     }
                     Some(peer_cert) => {
                         Ok(peer_cert.clone())
@@ -104,28 +106,57 @@ pub struct SimpleCertificate{
     common_name : String,
     serial_number : String,
     expiration_date : OffsetDateTime,
-    san_list : Vec<String>
+    san_list : Vec<String>,
+    is_ca : bool,
+    pem : String
 }
 
 
 impl SimpleCertificate {
 
-    pub fn new(cert : &X509Certificate) -> SimpleCertificate {
+    fn build(cert : &X509Certificate, pem : String) -> SimpleCertificate {
 
         //let cert = Arc::new(c.to_owned());
         SimpleCertificate {
             common_name : get_common_name(cert),
             serial_number : get_serial_number(cert),
             expiration_date : cert.validity().not_after.to_datetime(),
-            san_list : get_san_dns_names(cert)
+            san_list : get_san_dns_names(cert),
+            is_ca : cert.is_ca(),
+            pem
         }
     }
 
 
+
+    fn to_pem(der : &[u8]) -> String {
+
+        let mut pem = "-----BEGIN CERTIFICATE-----\n".to_string();
+
+        let mut b64 = data_encoding::BASE64.encode(&der);
+        while let Some((line, remaining)) = b64.split_at_checked(65) {
+            pem.push_str(line);
+            if !remaining.is_empty() {
+                b64 = remaining.to_string();
+                pem.push('\n');
+            } else {
+                b64 = "".to_owned();
+            }
+        }
+        if !b64.is_empty() {
+            pem.push_str(&b64);
+        }
+
+        pem.push_str("\n-----END CERTIFICATE-----\n");
+        pem
+    }
+
+
     pub fn from_certificate_der(der_cert : &rustls::pki_types::CertificateDer) -> Result<SimpleCertificate, CertError>{
+        let pem = Self::to_pem(der_cert.as_ref());
         match X509Certificate::from_der(der_cert.as_ref()) {
             Ok((_,cert)) => {
-                Ok(SimpleCertificate::new(&cert))
+                Ok(SimpleCertificate::build(&cert, pem))
             }
             Err(e) => {
                 Err(CertError::InvalidFormat(e.to_string()))
@@ -160,6 +191,10 @@ impl SimpleCertificate {
         &self.san_list
     }
 
+    pub fn get_pem(&self) -> String {
+        self.pem.clone()
+    }
+
     pub fn get_remaining_days(&self) -> i64 {
         let now = OffsetDateTime::now_utc();
         let end = self.expiration_date;
@@ -172,9 +207,9 @@ impl SimpleCertificate {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use rustls::pki_types::CertificateDer;
     use time::macros::format_description;
-    use super::*;
     const GITEA_CERT: &[u8] = include_bytes!("../testdata/gitea.tschirky.ch.crt");
     const GATEKEEPER_CERT: &[u8] = include_bytes!("../testdata/gatekeeper.tschirky.ch.crt");
     const WWW_CERT: &[u8] = include_bytes!("../testdata/www.tschirky.ch.crt");
@@ -204,7 +239,7 @@ mod tests {
 
     #[test]
     fn test_get_common_name_ok_1(){
-        let certs = [ CertificateDer::from(crate::cert_retriever::tests::GITEA_CERT), CertificateDer::from(GATEKEEPER_CERT), CertificateDer::from(WWW_CERT)];
+        let certs = [ CertificateDer::from(GITEA_CERT), CertificateDer::from(GATEKEEPER_CERT), CertificateDer::from(WWW_CERT)];
         let cert = SimpleCertificate::find_matching_certificate("owncloud.tschirky.ch", Some(&certs));
         assert!(cert.is_some());
         let cert = cert.unwrap();
@@ -214,7 +249,7 @@ mod tests {
 
     #[test]
     fn test_get_common_name_ok_2(){
-        let certs = [ CertificateDer::from(crate::cert_retriever::tests::GITEA_CERT), CertificateDer::from(GATEKEEPER_CERT), CertificateDer::from(WWW_CERT)];
+        let certs = [ CertificateDer::from(GITEA_CERT), CertificateDer::from(GATEKEEPER_CERT), CertificateDer::from(WWW_CERT)];
         let cert = SimpleCertificate::find_matching_certificate("gitea.tschirky.ch", Some(&certs));
         assert!(cert.is_some());
         let cert = cert.unwrap();
@@ -224,7 +259,7 @@ mod tests {
 
     #[test]
     fn test_get_common_name_nok_1(){
-        let certs = [ CertificateDer::from(crate::cert_retriever::tests::GITEA_CERT), CertificateDer::from(GATEKEEPER_CERT), CertificateDer::from(WWW_CERT)];
+        let certs = [ CertificateDer::from(GITEA_CERT), CertificateDer::from(GATEKEEPER_CERT), CertificateDer::from(WWW_CERT)];
         let cert = SimpleCertificate::find_matching_certificate("mirko.tschirky.ch", Some(&certs));
         assert!(cert.is_none());
     }
@@ -272,13 +307,39 @@ mod tests {
                         assert_eq!(e, "Target schludri.e3ag.ch:443 is unreachable");
                     }
                     _ => {
-                        assert!(false);
+                        panic!("Unexpected CertError");
                     }
                 }
             },
             Ok(_) => {
-                assert!(false)
+                panic!("We expect CertError");
             }
         }
+    }
+
+
+    #[test]
+    fn test_write_to_pem(){
+        let gitea = SimpleCertificate::from_certificate_der( &CertificateDer::from(GITEA_CERT)).unwrap();
+        println!("{}", gitea.get_pem());
+    }
+
+    #[test]
+    fn compare_pem(){
+        let mut pem = "-----BEGIN CERTIFICATE-----\n".to_string();
+        let lines : Vec<&str> = vec![];
+        let mut b64 = data_encoding::BASE64.encode(&GITEA_CERT);
+        while let Some((line, remaining)) = b64.split_at_checked(65) {
+            pem.push_str(line);
+            if !remaining.is_empty() {
+                b64 = remaining.to_string();
+                pem.push('\n');
+            }
+        }
+        if !b64.is_empty() {
+            pem.push_str(&b64);
+        }
+        pem.push_str("\n-----END CERTIFICATE-----\n");
+        println!("{}",pem)
     }
 }

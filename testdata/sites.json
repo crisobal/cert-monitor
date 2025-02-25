@@ -1,0 +1,33 @@
+{
+  "logTarget": "monitor",
+  "sites": [
+    {
+      "targetFqn": "gatekeeper.e3ag.ch",
+      "service": "flup",
+      "port": 443,
+      "minValidDays": 20
+    },
+    {
+      "targetFqn": "www.tschirky.ch",
+      "service": "flup",
+      "port": 443,
+      "minValidDays": 15
+    },
+    {
+      "targetFqn": "gitea.tschirky.ch",
+      "service": "other",
+      "port": 443,
+      "minValidDays": 15
+    },
+    {
+      "targetFqn": "owncloud.tschirky.ch",
+      "service": "other",
+      "minValidDays": 15
+    },
+    {
+      "targetFqn": "gatekeeper.tschirky.ch",
+      "service": "other"
+    }
+  ]
+
+}
