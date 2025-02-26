@@ -29,7 +29,7 @@ jobs:
 
     runs-on: ${{ matrix.platform.os }}
 
-    name: Test Build on Linux
+    name: Release on multiple os
 
     steps:
       - uses: actions/checkout@v4
@@ -42,5 +42,5 @@ jobs:
         with:
           executable-name: cert-monitor
           target: ${{ matrix.platform.target }}
-        if: matrix.toolchain == 'stable'
+        
 

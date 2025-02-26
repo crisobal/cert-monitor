@@ -16,7 +16,7 @@ jobs:
         os: [ ubuntu-latest, windows-latest ]
     runs-on: ${{ matrix.os }}
 
-    name: Test Build on Linux
+    name: Test on multiple os
 
     steps:
     - uses: actions/checkout@v4
