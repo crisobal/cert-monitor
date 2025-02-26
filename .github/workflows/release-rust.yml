@@ -41,10 +41,10 @@ jobs:
         uses: houseabsolute/actions-rust-release@v0
         with:
           executable-name: cert-monitor
-          target: ${{ matrix.platform.target }}-${{github.event.release.tag_name}}
+          target: ${{ matrix.platform.target }}
           action-gh-release-parameters: |
-            {
-                "repository": "crisobal/cert-monitor",
+            {                
                 "make_latest" : "true"
+                "_force-release-for-testing" : "true"
             }
       
