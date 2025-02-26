@@ -31,8 +31,6 @@ jobs:
     name: Release on multiple os
 
     steps:
-      - run: |
-          export VERSION=${{github.event.release.tag_name}}
       - uses: actions/checkout@v4
       - name: Build
         run: cargo build --release --verbose
@@ -41,5 +39,10 @@ jobs:
         with:
           executable-name: cert-monitor
           target: ${{ matrix.platform.target }}-${{github.event.release.tag_name}}
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ${{artifact-id}}      
 
 
