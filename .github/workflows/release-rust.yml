@@ -37,7 +37,6 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build
         run: cargo build --release --verbose
-        GITHUB_TOKEN: ${{ github.token }}
       - name: Publish artifacts and release
         uses: houseabsolute/actions-rust-release@v0
         with:
