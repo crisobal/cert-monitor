@@ -1,10 +1,12 @@
-use rustls::pki_types::ServerName;
-use rustls::{ClientConfig, RootCertStore};
+use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
+use rustls::client::WebPkiServerVerifier;
+use rustls::pki_types::{CertificateDer, ServerName, UnixTime};
+use rustls::{ClientConfig, DigitallySignedStruct, Error, RootCertStore, SignatureScheme};
+use std::fmt::Debug;
 use std::io::{BufRead, Write};
 use std::net::TcpStream;
 use std::sync::Arc;
 use time::OffsetDateTime;
-use x509_parser::error::PEMError;
 use x509_parser::extensions::GeneralName;
 use x509_parser::prelude::{FromDer, X509Certificate};
 
@@ -12,8 +14,40 @@ use x509_parser::prelude::{FromDer, X509Certificate};
 pub struct CertRetriever {
     config : Arc<ClientConfig>
 }
+#[derive(Debug)]
+struct NullVerifier {
+    parent : Arc<WebPkiServerVerifier>
+}
 
+impl NullVerifier {
+    pub fn new() -> NullVerifier {
+        let root_store = RootCertStore {
+            roots: webpki_roots::TLS_SERVER_ROOTS.into(),
+        };
+        NullVerifier {
+            parent : WebPkiServerVerifier::builder(<Arc<RootCertStore>>::from(root_store)).allow_unknown_revocation_status().build().unwrap()
+        }
+    }
 
+}
+impl ServerCertVerifier for NullVerifier {
+    fn verify_server_cert(&self, end_entity: &CertificateDer<'_>, intermediates: &[CertificateDer<'_>], server_name: &ServerName<'_>, ocsp_response: &[u8], now: UnixTime) -> Result<ServerCertVerified, Error> {
+        //self.parent.verify_server_cert(end_entity, intermediates, server_name, ocsp_response, now)
+        Ok(ServerCertVerified::assertion())
+    }
+
+    fn verify_tls12_signature(&self, message: &[u8], cert: &CertificateDer<'_>, dss: &DigitallySignedStruct) -> Result<HandshakeSignatureValid, Error> {
+        self.parent.verify_tls12_signature(message, cert, dss)
+    }
+
+    fn verify_tls13_signature(&self, message: &[u8], cert: &CertificateDer<'_>, dss: &DigitallySignedStruct) -> Result<HandshakeSignatureValid, Error> {
+        self.parent.verify_tls13_signature(message, cert, dss)
+    }
+
+    fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {
+        self.parent.supported_verify_schemes()
+    }
+}
 
 impl CertRetriever {
     pub fn new() -> CertRetriever {
@@ -28,7 +62,10 @@ impl CertRetriever {
         config.key_log = Arc::new(rustls::KeyLogFile::new());
         
         //TODO: future approach to also include expired certificates
-        //config.dangerous().set_certificate_verifier()
+
+        /* rustls::client::ServerCertVerifierBuilder */
+        let v  = <Box::<dyn ServerCertVerifier>>::from(Box::new(NullVerifier::new()));
+        config.dangerous().set_certificate_verifier( <Arc<dyn ServerCertVerifier>>::from(v));
         CertRetriever {
             config : Arc::new(config)
         }
@@ -100,7 +137,6 @@ pub fn get_san_dns_names(cert : &X509Certificate) -> Vec<String> {
     dns_names
 }
 
-
 #[derive(Clone)]
 pub struct SimpleCertificate{
     common_name : String,
@@ -114,7 +150,7 @@ pub struct SimpleCertificate{
 
 impl SimpleCertificate {
 
-    fn build(cert : &X509Certificate, pem : String) -> SimpleCertificate {
+    fn internal_build(cert : &X509Certificate, pem : String) -> SimpleCertificate {
 
         //let cert = Arc::new(c.to_owned());
         SimpleCertificate {
@@ -156,7 +192,7 @@ impl SimpleCertificate {
         let pem = Self::to_pem(der_cert.as_ref());
         match X509Certificate::from_der(der_cert.as_ref()) {
             Ok((_,cert)) => {
-                Ok(SimpleCertificate::build(&cert, pem))
+                Ok(SimpleCertificate::internal_build(&cert, pem))
             }
             Err(e) => {
                 Err(CertError::InvalidFormat(e.to_string()))

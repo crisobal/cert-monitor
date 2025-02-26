@@ -3,12 +3,12 @@ mod config;
 use crate::cert_retriever::{CertError, CertRetriever};
 use crate::config::{load_config_file, Site, SiteConfig};
 use clap::{Parser, Subcommand};
+use console::{style, Style};
 use std::path::PathBuf;
 use std::process::ExitCode;
-use console::{style, Style};
 
 #[derive(Parser)]
-#[command(version, about, long_about = None, version = "0.1.0")]
+#[command(version, about, long_about = None, version = "0.2.0")]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -16,8 +16,10 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// does testing things
+    /// Installs the Windows service
     InstallService {},
+    
+    /// Monitors all the targes given in the sites config file
     Monitor {
         /// config file
         #[arg(short = 'c', long, value_name = "FILE")]
@@ -29,8 +31,14 @@ enum Commands {
 
         /// Daemon mode without verbose console output but log entries instead
         #[arg(short = 'd', long, value_name = "daemon", default_value = "false")]
-        daemon: bool
+        daemon: bool,
+
+        /// Output the certificate instead of the table
+        #[arg(short = 'o', long, value_name = "cert", default_value = "false")]
+        cert_output: bool
     },
+    
+    /// Checks the target given on the command line
     Check {
         /// Full qualified target host to query
         #[arg(short = 't', long, value_name = "target_host")]
@@ -41,7 +49,7 @@ enum Commands {
         target_port: u32,
 
         /// Output the certificate instead of the table
-        #[arg(short = 'c', long, value_name = "cert", default_value = "false")]
+        #[arg(short = 'o', long, value_name = "cert", default_value = "false")]
         cert_output: bool
 
 
@@ -55,9 +63,9 @@ fn main() -> ExitCode {
         Commands::InstallService { .. } => {
             ExitCode::SUCCESS
         }
-        Commands::Monitor { config_file,interval_hours, daemon } => {
+        Commands::Monitor { config_file,interval_hours, daemon,cert_output } => {
             if let Some(site_config) = load_config_file(config_file) {
-                monitor_cert_list(site_config, daemon, !daemon, true, false);
+                monitor_cert_list(site_config, daemon, !daemon, true, cert_output);
             }
             ExitCode::SUCCESS
         }
@@ -81,7 +89,7 @@ fn monitor_cert_list(site_config: SiteConfig, do_log_out : bool, do_console_out:
             style("RemDays").white().bold(),
             style("Serial").white().bold(),
             style("CN").white().bold());
-        println!("---+ {:-<35}-+-{:-<5}-+-{:-<7}-+-{:-<40}-+-{:-<50}","","","","","");
+        println!("---+-{:-<35}-+-{:-<5}-+-{:-<7}-+-{:-<40}-+-{:-<50}","","","","","");
     }
 
     site_config.site_iter().for_each(|site| {
