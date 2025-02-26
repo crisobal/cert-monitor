@@ -31,6 +31,10 @@ jobs:
     name: Release on multiple os
 
     steps:
+      - run: |
+          export VERSION=${{ github.event.release.tag_name }}
+          sed -i "s/0.0.0/$VERSION/g" Cargo.toml
+
       - uses: actions/checkout@v4
       - name: Build
         run: cargo build --release --verbose
@@ -38,6 +42,6 @@ jobs:
         uses: houseabsolute/actions-rust-release@v0
         with:
           executable-name: cert-monitor
-          target: ${{ matrix.platform.target }}
+          target: ${{ matrix.platform.target }}-${{VERSION}}
 
 
