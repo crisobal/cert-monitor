@@ -39,10 +39,8 @@ jobs:
         with:
           executable-name: cert-monitor
           target: ${{ matrix.platform.target }}-${{github.event.release.tag_name}}
-      - name: Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            ${{artifact-id}}      
-
-
+          action-gh-release-parameters: |
+            {
+                "repository": "crisobal/cert-monitor"                
+            }
+      
