@@ -35,8 +35,15 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      - name: Build
-        run: cargo build --release --verbose
+      - name: Build binary
+        uses: houseabsolute/actions-rust-cross@v1
+        with:
+          command: "build"
+          target: ${{ matrix.platform.target }}
+          toolchain: stable
+          args: "--locked --release"
+          strip: true
+          cross-version: 107433fa9d71d7eb506cd5bf5467bab89edb7a52
       - name: Publish artifacts and release
         uses: houseabsolute/actions-rust-release@v0
         with:
