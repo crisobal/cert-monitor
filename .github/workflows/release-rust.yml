@@ -1,0 +1,55 @@
+name: Rust-Release
+
+on:
+  workflow_dispatch:
+
+  push:
+    tags:
+      - '[0-9]+.[0-9]+.[0-9]+'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  release:
+    strategy:
+      matrix:
+        platform:
+          - os_name: Linux-x86_64
+            os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+
+          - os_name: macOS-x86_64
+            os: macOS-latest
+            target: x86_64-apple-darwin
+
+          - os_name: Windows-x86_64
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+
+
+    runs-on: ${{ matrix.platform.os }}
+
+    name: Release on multiple os
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build binary
+        uses: houseabsolute/actions-rust-cross@v1
+        with:
+          command: "build"
+          target: ${{ matrix.platform.target }}
+          toolchain: stable
+          args: "--locked --release"
+          strip: true
+          cross-version: 107433fa9d71d7eb506cd5bf5467bab89edb7a52
+      - name: Publish artifacts and release
+        uses: houseabsolute/actions-rust-release@v0
+        with:
+          executable-name: cert-monitor
+          target: ${{ matrix.platform.target }}
+          action-gh-release-parameters: |
+            {                
+                "make_latest": "true"                                
+            }
+      

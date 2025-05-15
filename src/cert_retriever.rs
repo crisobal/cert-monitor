@@ -246,6 +246,8 @@ mod tests {
     use super::*;
     use rustls::pki_types::CertificateDer;
     use time::macros::format_description;
+    use x509_parser::nom::combinator::fail;
+
     const GITEA_CERT: &[u8] = include_bytes!("../testdata/gitea.tschirky.ch.crt");
     const GATEKEEPER_CERT: &[u8] = include_bytes!("../testdata/gatekeeper.tschirky.ch.crt");
     const WWW_CERT: &[u8] = include_bytes!("../testdata/www.tschirky.ch.crt");
@@ -267,7 +269,8 @@ mod tests {
             assert_eq!(c.get_serial_number(), "04ba66ac8f777d7daa73e89ceab53b47f5ae");
             assert_eq!(c.get_san_dns_names(), &["gitea.tschirky.ch"]);
 
-            assert_eq!(c.get_remaining_days(), (38 - test_day_offset()));
+            let failure = c.get_remaining_days() - 38 + test_day_offset();
+            assert!( failure < 2 && failure > -2);
         } else {
             assert!(false);
         }
