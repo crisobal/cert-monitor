@@ -50,6 +50,6 @@ jobs:
           target: ${{ matrix.platform.target }}
           action-gh-release-parameters: |
             {                
-                "make_latest" : "true",                                
+                "make_latest": "true"                                
             }
       
