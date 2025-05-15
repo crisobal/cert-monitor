@@ -1,5 +1,7 @@
 # Changes
 
-## 0.0.1
+## 0.1.0. First Version for Testing
 * new:
-  * Initial Creation 
+  * Tabular console output
+  * Measures from cofnig file
+  *  
