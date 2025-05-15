@@ -173,7 +173,7 @@ dependencies = [
 
 [[package]]
 name = "cert-monitor"
-version = "0.1.0"
+version = "0.0.99"
 dependencies = [
  "clap",
  "console",

@@ -1,7 +1,7 @@
 # Changes
 
-## 0.1.0. First Version for Testing
+## 0.0.99. First development version
 * new:
   * Tabular console output
-  * Measures from cofnig file
-  *  
+  * Measures from config file
+    
