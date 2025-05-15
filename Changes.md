@@ -1,10 +1,13 @@
 # Changes
 
 ## 0.2.0
+* new:
+  * Is licensed as MIT and APACHE 2.0
 
 ## 0.1.0
 * new:
   * Newest dependency version
+
 
 ## 0.0.99
 * new:
