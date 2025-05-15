@@ -63,7 +63,7 @@ fn main() -> ExitCode {
         Commands::InstallService { .. } => {
             ExitCode::SUCCESS
         }
-        Commands::Monitor { config_file,interval_hours, daemon,cert_output } => {
+        Commands::Monitor { config_file, interval_hours: _interval_hours, daemon,cert_output } => {
             if let Some(site_config) = load_config_file(config_file) {
                 monitor_cert_list(site_config, daemon, !daemon, true, cert_output);
             }
@@ -79,7 +79,7 @@ fn main() -> ExitCode {
     }
 }
 
-fn monitor_cert_list(site_config: SiteConfig, do_log_out : bool, do_console_out: bool, print_table_header : bool, cert_output: bool) {
+fn monitor_cert_list(site_config: SiteConfig, _do_log_out : bool, do_console_out: bool, print_table_header : bool, cert_output: bool) {
 
 
     if do_console_out && print_table_header &&  !cert_output {

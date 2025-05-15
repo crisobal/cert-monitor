@@ -3,7 +3,7 @@ use rustls::client::WebPkiServerVerifier;
 use rustls::pki_types::{CertificateDer, ServerName, UnixTime};
 use rustls::{ClientConfig, DigitallySignedStruct, Error, RootCertStore, SignatureScheme};
 use std::fmt::Debug;
-use std::io::{BufRead, Write};
+use std::io::{Write};
 use std::net::TcpStream;
 use std::sync::Arc;
 use time::OffsetDateTime;
@@ -31,7 +31,7 @@ impl NullVerifier {
 
 }
 impl ServerCertVerifier for NullVerifier {
-    fn verify_server_cert(&self, end_entity: &CertificateDer<'_>, intermediates: &[CertificateDer<'_>], server_name: &ServerName<'_>, ocsp_response: &[u8], now: UnixTime) -> Result<ServerCertVerified, Error> {
+    fn verify_server_cert(&self, _end_entity: &CertificateDer<'_>, _intermediates: &[CertificateDer<'_>], _server_name: &ServerName<'_>, _ocsp_response: &[u8], _now: UnixTime) -> Result<ServerCertVerified, Error> {
         //self.parent.verify_server_cert(end_entity, intermediates, server_name, ocsp_response, now)
         Ok(ServerCertVerified::assertion())
     }
@@ -64,7 +64,7 @@ impl CertRetriever {
         //TODO: future approach to also include expired certificates
 
         /* rustls::client::ServerCertVerifierBuilder */
-        let v  = <Box::<dyn ServerCertVerifier>>::from(Box::new(NullVerifier::new()));
+        let v  = <Box<dyn ServerCertVerifier>>::from(Box::new(NullVerifier::new()));
         config.dangerous().set_certificate_verifier( <Arc<dyn ServerCertVerifier>>::from(v));
         CertRetriever {
             config : Arc::new(config)
@@ -82,7 +82,7 @@ impl CertRetriever {
                 let mut conn = rustls::ClientConnection::new(self.config.clone(), server_name).unwrap();
                 
                 let mut tls = rustls::Stream::new(&mut conn, &mut sock);
-                if let Err(e) = tls.write(b"\n") {
+                if let Err(_e) = tls.write(b"\n") {
                     //TODO change to proper debug logging
                     //println!("Error during connect to {}: {}", full_target, e.kind().to_string());
                 }
@@ -165,11 +165,11 @@ impl SimpleCertificate {
 
 
 
-    fn to_pem(der : &[u8]) -> String {
+    fn create_pem(der : &[u8]) -> String {
 
         let mut pem = "-----BEGIN CERTIFICATE-----\n".to_string();
 
-        let mut b64 = data_encoding::BASE64.encode(&der);
+        let mut b64 = data_encoding::BASE64.encode(der);
         while let Some((line, remaining)) = b64.split_at_checked(65) {
             pem.push_str(line);
             if !remaining.is_empty() {
@@ -188,8 +188,8 @@ impl SimpleCertificate {
     }
 
 
-    pub fn from_certificate_der(der_cert : &rustls::pki_types::CertificateDer) -> Result<SimpleCertificate, CertError>{
-        let pem = Self::to_pem(der_cert.as_ref());
+    pub fn from_certificate_der(der_cert : &CertificateDer) -> Result<SimpleCertificate, CertError>{
+        let pem = Self::create_pem(der_cert.as_ref());
         match X509Certificate::from_der(der_cert.as_ref()) {
             Ok((_,cert)) => {
                 Ok(SimpleCertificate::internal_build(&cert, pem))
@@ -200,7 +200,7 @@ impl SimpleCertificate {
         }
     }
 
-    pub fn find_matching_certificate(peer_name : &str, certs : std::option::Option<&[rustls::pki_types::CertificateDer]>) -> Option<SimpleCertificate>{
+    pub fn find_matching_certificate(peer_name : &str, certs : Option<&[CertificateDer]>) -> Option<SimpleCertificate>{
         let mut found_matching_cert = None;
         if let Some(cert) = certs {
             cert.iter().for_each(|cert| {
@@ -235,8 +235,7 @@ impl SimpleCertificate {
         let now = OffsetDateTime::now_utc();
         let end = self.expiration_date;
         let remain =  end - now;
-        let days = remain.whole_days();
-        days
+        remain.whole_days()
     }
 }
 
@@ -246,7 +245,7 @@ mod tests {
     use super::*;
     use rustls::pki_types::CertificateDer;
     use time::macros::format_description;
-    use x509_parser::nom::combinator::fail;
+
 
     const GITEA_CERT: &[u8] = include_bytes!("../testdata/gitea.tschirky.ch.crt");
     const GATEKEEPER_CERT: &[u8] = include_bytes!("../testdata/gatekeeper.tschirky.ch.crt");
@@ -366,8 +365,8 @@ mod tests {
     #[test]
     fn compare_pem(){
         let mut pem = "-----BEGIN CERTIFICATE-----\n".to_string();
-        let lines : Vec<&str> = vec![];
-        let mut b64 = data_encoding::BASE64.encode(&GITEA_CERT);
+        let _lines : Vec<&str> = vec![];
+        let mut b64 = data_encoding::BASE64.encode(GITEA_CERT);
         while let Some((line, remaining)) = b64.split_at_checked(65) {
             pem.push_str(line);
             if !remaining.is_empty() {
