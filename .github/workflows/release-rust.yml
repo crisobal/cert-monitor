@@ -50,38 +50,6 @@ jobs:
           target: ${{ matrix.platform.target }}
           action-gh-release-parameters: |
             {                
-                "make_latest" : "true",
-                "_force-release-for-testing" : "true"                
+                "make_latest" : "true",                                
             }
-      - name: Parse `action-gh-release-parameters` and set inputs for `softprops/action-gh-release`
-        id: action-gh-release-parameters
-        shell: bash
-        run: |
-          set -e
-          set -x
-          set -o pipefail
-
-          FAKE_TAG=""
-          if [ -n "${{ inputs._force-release-for-testing }}" ]; then
-              workflow_ref="${{ github.workflow_ref }}"
-              workflow_path="${workflow_ref%%@*}"
-              workflow_file=$(basename "$workflow_path")
-              timestamp=$( TZ=UTC git log -1 --format=%cd --date=format-local:%Y-%m-%dT%H-%M-%S )
-              FAKE_TAG="v-$timestamp-${{ github.ref_name }}-${{ github.sha }}-${{ github.run_number }}-$workflow_file"
-          fi
-          # This will get the inputs JSON from the `ACTION_GH_RELEASE_PARAMETERS` env var. This avoids
-          # any string interpolation issues, since the inputs will contain quotes.
-          parse-and-set-action-gh-release-parameters.py \
-              --working-directory "${{ inputs.working-directory }}" \
-              --archive-file "${{ steps.package-archive.outputs.archive-file }}" \
-              --changes-file "${{ inputs.changes-file }}" \
-              --fake-tag "$FAKE_TAG"
-        env:
-          ACTION_GH_RELEASE_PARAMETERS: ${{ inputs.action-gh-release-parameters }}
-
-
-      - name: Publish GitHub release
-        uses: softprops/action-gh-release@v2
-        with: ${{ steps.action-gh-release-parameters.outputs }}
-        
       
